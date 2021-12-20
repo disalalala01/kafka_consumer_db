@@ -1,7 +1,7 @@
 from kafka import KafkaConsumer
 import threading
 import sys
-import logging
+from monitoring import logger
 
 
 class FlaskKafka():
@@ -30,21 +30,21 @@ class FlaskKafka():
                 handler(msg)
             self.consumer.commit()
         except Exception as e:
-            logging.critical(str(e), exc_info=1)
+            logger.critical(str(e), exc_info=1)
             self.consumer.close()
             sys.exit("Exited due to exception")
 
     def signal_term_handler(self, signal, frame):
-        logging.info("closing consumer")
+        logger.info("closing consumer")
         self.consumer.close()
         sys.exit(0)
 
     def _start(self):
         self.consumer.subscribe(topics=tuple(self.handlers.keys()))
-        logging.info("starting consumer...registered signterm")
+        logger.info("starting consumer...registered signterm")
 
         for msg in self.consumer:
-            logging.debug("TOPIC: {}, PAYLOAD: {}".format(msg.topic, msg.value))
+            logger.debug("TOPIC: {}, PAYLOAD: {}".format(msg.topic, msg.value))
             self._run_handlers(msg)
             # stop the consumer
             if self.interrupt_event.is_set():
@@ -52,12 +52,12 @@ class FlaskKafka():
                 self.interrupt_event.clear()
 
     def interrupted_process(self, *args):
-        logging.info("closing consumer")
+        logger.info("closing consumer")
         self.consumer.close()
         sys.exit(0)
 
     def _run(self):
-        logging.info(" * The flask Kafka application is consuming")
+        logger.info(" * The flask Kafka application is consuming")
         t = threading.Thread(target=self._start)
         t.start()
 

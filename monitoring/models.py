@@ -1,6 +1,6 @@
-import logging
 from datetime import datetime
-from . import db, Base, session_db
+from monitoring import Base, session_db, logger
+import sqlalchemy as db
 
 
 class MonitoringPrice(Base):
@@ -27,7 +27,7 @@ class MonitoringPrice(Base):
             session_db.add(self)
             session_db.commit()
         except Exception as e:
-            logging.exception(e)
+            logger.exception(e)
             session_db.rollback()
 
     @classmethod
@@ -36,5 +36,5 @@ class MonitoringPrice(Base):
             s = cls.query.filter(cls.shop_name == shop_name, cls.created == datetime.now().date()).count()
             return s
         except Exception as e:
-            logging.exception(e)
+            logger.exception(e)
             session_db.rollback()
