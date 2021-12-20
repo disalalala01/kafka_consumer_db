@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: _APP_NAME_
+  name: _APP_NAME_
+  namespace: microservices
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: _APP_NAME_
+  template:
+    metadata:
+      labels:
+        app: _APP_NAME_
+    spec:
+      containers:
+        - image: _IMAGE_NAME_
+          name: _APP_NAME_
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: cfm-_APP_NAME_
+          resources:
+            requests:
+              memory: "64Mi"
+            limits:
+              memory: "128Mi"
+      imagePullSecrets: 
+        - name: registry-credentials

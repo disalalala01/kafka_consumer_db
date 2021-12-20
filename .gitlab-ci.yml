@@ -1,0 +1,57 @@
+variables:
+  IMAGE_NAME: $CI_REGISTRY/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME
+  DOCKER_HOST: $DOCKER_HOST
+  NAMESPACE: microservices
+  NAME_APP: price-consumer
+
+stages:
+  - build
+  - test
+  - deploy
+include:
+  - template: Security/Container-Scanning.gitlab-ci.yml
+  - template: Security/SAST.gitlab-ci.yml
+
+
+build:
+  stage: build
+  services:
+    - docker:19-dind
+  before_script:
+    - echo "$CI_TOKEN" | docker login -u "$CI_USER" --password-stdin "$CI_REGISTRY"
+  tags:
+    - shared-docker01
+  only:
+    - tags
+  script:
+    - docker pull ${IMAGE_NAME}:latest || true
+    - docker build --cache-from ${IMAGE_NAME}:latest -f Dockerfile --tag ${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} .
+    - docker tag ${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}
+    - docker tag ${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ${IMAGE_NAME}:latest
+    - docker push ${IMAGE_NAME}:latest
+    - docker push ${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}
+
+sast:
+  tags:
+    - shared-docker01
+  before_script:
+    - apk update && apk add git
+    - git config --global url."https://$REPO_READ_CI:$REPO_READ_CI_PASSWORD@10.241.93.2/".insteadOf "http://10.241.93.2/"
+  variables:
+    SAST_DISABLE_DIND: "true"
+
+deploy:
+  stage: deploy
+  image: dtzar/helm-kubectl:3.7
+  tags:
+    - shared-docker01
+  only:
+    - tags
+  before_script:
+    - cat "$CI_CONFIG_SERVICE" > configMap.txt
+    - kubectl create configmap "cfm-$NAME_APP" --from-env-file=./configMap.txt --dry-run=client -o yaml > configmap.yaml
+    - sed -i 's#KUBE_TOKEN#'"$KUBE_TOKEN"'#g;' ./kubeconf && sed -i 's#KUBE_HOST#'"$KUBE_HOST"'#g;' ./kubeconf
+    - sed -i 's#_APP_NAME_#'"$NAME_APP"'#g;' ./deployment.yaml && sed -i 's#_IMAGE_NAME_#'"${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}"'#g;' ./deployment.yaml
+  script:
+    - kubectl --kubeconfig ./kubeconf apply -f configmap.yaml --namespace $NAMESPACE
+    - kubectl --kubeconfig ./kubeconf apply -f deployment.yaml --namespace $NAMESPACE
